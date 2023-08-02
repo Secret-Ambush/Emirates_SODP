@@ -8,12 +8,12 @@ import pickle
 from datetime import datetime
 import numpy as np
 import xgboost as xg
-import streamlit.components.v1 as components
 from plotly_calplot import calplot
 import matplotlib.pyplot as plt
 import plotly.graph_objects as go
 from datetime import datetime, timedelta
 import time
+from streamlit_option_menu import option_menu
 
 
 @st.cache_resource
@@ -37,17 +37,34 @@ def fetch_flight_data(fltnumber):
         flight_data = pd.read_sql(f"SELECT * FROM DEMODATA WHERE fltnum = '{fltnumber}' AND cmp = 'Y' ORDER BY fltdep ASC", get_connection())
     return flight_data
 
+@st.cache_data
+def fetch_classflight_data(fltnumber):
+    with st.spinner('Loading Data...'):
+        time.sleep(0.5)
+        flight_data = pd.read_sql(f"SELECT * FROM trainingdata WHERE fltnum = '{fltnumber}' AND cmp = 'Y' AND fltdep >= '2019-01-01' ORDER BY fltdep ASC", get_connection())
+    return flight_data
+
 
 img = Image.open("emirates_logo.png")
 img2 = Image.open("graphics.png")
 
-st.sidebar.title('Models')
+st.markdown(
+    """
+    <style>
+    [data-testid="stSidebar"][aria-expanded="true"]{
+        min-width: 250px;
+        max-width: 500px;
+    }
+    """,
+    unsafe_allow_html=True,
+)   
+
+st.sidebar.title("SODP prediction")
 st.sidebar.image(img2,width = 100)
-side_bar = st.sidebar.radio('What would you like to view?', [ 'Regression Model', 'Help: RM', 'Help: CM'])
+side_bar = st.sidebar.radio('What would you like to view?', [ 'Classification Model', '📝Help: CM', 'Regression Model', '📝Help: RM'])
 
 if side_bar == 'Classification Model':
     header = st.container()
-    data = st.container()
     features = st.container()
 
     with header:
@@ -62,38 +79,20 @@ if side_bar == 'Classification Model':
             st.write("##")
             st.image("https://media.giphy.com/media/gKqWZbwmP4I3SwUof9/giphy.gif", width = 150)
 
-    with data:
-        st.header("DATASET")
-        st.markdown("I was given a comprehensive **dataset** exhibiting flights from **2017 to 2019**")
-
-        dtypes = {'flight_number': str}
-        query = "Select * from DEMODATA limit 50"
-        training_data = pd.read_sql(query, get_connection())
-        st.dataframe(training_data)
-        
-        st.write("Quick analytics of dataset given:")
-        if st.button("Display"):
-            flourish_code = """
-            <div class="flourish-embed flourish-chart" data-src="visualisation/14551372" data-height="200%"><script src="https://public.flourish.studio/resources/embed.js"></script></div>        
-            """
-            components.html(flourish_code, height = 350)
-            print("magic")
-        
-
     with features:
-        st.header("Classifier Model / Analytics")
-        st.markdown("SODP (30 days prior):")
+        st.markdown("Select the folowing:")
         col1, col2 = st.columns((5,5))
         with col1:
-            df1_new = pd.read_sql("SELECT DISTINCT lego FROM DEMODATA ORDER BY lego", get_connection())
+            df1_new = pd.read_sql("SELECT DISTINCT lego FROM trainingdata ORDER BY lego", get_connection())
             option_1 = df1_new['lego'].tolist()
-            selected_1 = st.selectbox('Select Leg Origin', option_1)
+            default_option = option_1.index('BOM')
+            selected_1 = st.selectbox('Select Leg Origin', option_1, index = default_option)
         with col2:
-            df2_new = pd.read_sql(f"SELECT DISTINCT legd FROM DEMODATA WHERE lego = '{selected_1}' ORDER BY legd", get_connection())
+            df2_new = pd.read_sql(f"SELECT DISTINCT legd FROM trainingdata WHERE lego = '{selected_1}' ORDER BY legd", get_connection())
             option_2 = df2_new['legd'].tolist()
             selected_2 = st.selectbox('Select Leg Destination', option_2)
 
-        df3_new = pd.read_sql(f"SELECT DISTINCT fltnum FROM DEMODATA WHERE lego = '{selected_1}' AND legd = '{selected_2}' ORDER BY fltnum", get_connection())
+        df3_new = pd.read_sql(f"SELECT DISTINCT fltnum FROM trainingdata WHERE lego = '{selected_1}' AND legd = '{selected_2}' ORDER BY fltnum", get_connection())
         option_3 = df3_new['fltnum'].tolist()
         selected_3 = st.selectbox('Select Flight Number ', option_3)
         
@@ -101,180 +100,221 @@ if side_bar == 'Classification Model':
         st.write('Origin:', selected_1, ", Destination: ", selected_2, ", Flt num: ", selected_3)
     
         if st.button("Generate"):
-            # with open(f"xgboost_model_{selected_3}.pickle", "rb") as f:
-            #     model = pickle.load(f)
+            with open(f"xgboost_model_{selected_3}.pickle", "rb") as f:
+                model = pickle.load(f)
         
-            # flight = fetch_flight0001_data()
-            # flight['days_prior'] = (flight['fltdep'] - flight['snap']).dt.days
-            # flight['sodp'] = np.where(flight['bkd'] > flight['cap'], (flight['fltdep'] - flight['snap']).dt.days, 0)
-
-            # # Find the maximum 'sodp' value for each 'fltdep' group and broadcast it to the original DataFrame
-            # flight['max_sodp'] = flight.groupby('fltdep')['sodp'].transform('max')
-            # # Replace 'sodp' with 'max_sodp' for each 'fltdep' group
-            # flight['sodp'] = flight['max_sodp']
-            # flight.drop(columns=['max_sodp'], inplace=True)
-        
-            # #PREDICTED
-            # start_date = '2019-01-01'
-            # end_date = '2019-12-31'
-            # full_date_range = pd.date_range(start=start_date, end=end_date)
-            # date_df = pd.DataFrame({'Date': full_date_range})
-            # date_df['Date'] = pd.to_datetime(date_df['Date'])
-
-            # date_df['sodp'] = prediction
-            # date_df_temp2 = date_df
-
-            # date_df_temp2['sodp'].fillna(2, inplace=True)
-            # date_df_temp2['sodp'] = date_df_temp2['sodp'].astype(int)
-
-            # date_df_temp2['Date'] = pd.to_datetime(date_df_temp2['Date'], format='%Y-%m-%d')
-
-            # fig = calplot(
-            #     date_df_temp2, 
-            #     x= "Date", 
-            #     y = "sodp",
-            #     dark_theme=False,
-            #     years_title=True,
-            #     gap=1,
-            #     name="SODP",
-            #     month_lines_width=2, 
-            #     month_lines_color="black",
-            #     colorscale="magma",
-            #     showscale=True,
-            #     cmap_max=max(prediction),
-            #     cmap_min= min(prediction)
-            #     )
-
-            # date_df_temp2['Date'] = pd.to_datetime(date_df_temp2['Date'])
-
-            # date_formatted2 = date_df_temp2['Date'].dt.strftime('%Y-%m-%d')
-
-            # hover_template = (
-            #     '<b>Date</b>: %{customdata[0]}<br>' +
-            #     '<b>SODP</b>: %{customdata[1]:,.0f}<br>'
-            #     '<extra></extra>'
-            # )
-
-            # customdata = np.stack((date_formatted2, date_df_temp2['sodp']), axis=-1)
-
-            # fig.update_traces(hovertemplate=hover_template, customdata=customdata)
-            # fig.update_layout(title_text=f'<b>Predicted SODP for flight {selected_option_3}</b>')
-            # fig.update_layout(width=800)
-
-
-            # st.plotly_chart(fig)
+            flight = fetch_classflight_data(selected_3)
+            flight['fltdep'] = pd.to_datetime(flight['fltdep']).dt.date
+            flight['snap'] = pd.to_datetime(flight['snap']).dt.date
+            flight['bkd'] = flight['bkd'] + flight['grp_bkd']
+            flight = flight.drop('grp_bkd', axis = 1)
+            flight['sodp'] = np.where(flight['bkd'] > flight['cap'], (flight['fltdep'] - flight['snap']).dt.days, 0)
+            flight['max_sodp'] = flight.groupby('fltdep')['sodp'].transform('max')
+            flight['sodp'] = flight['max_sodp']
+            flight.drop(columns=['max_sodp'], inplace=True)
             
-            # st.write("")
-            # #ACTUAL
-            # start_date = '2019-01-01'
-            # end_date = '2019-12-31'
-            # full_date_range = pd.date_range(start=start_date, end=end_date)
-            # date_df2 = pd.DataFrame({'Date': full_date_range})
-            # date_df2['Date'] = pd.to_datetime(date_df2['Date'])
-
-            # # Step 5: Combine the current testing data with the date_df
-            # date_df2['sodp'] = actual
-            # date_df_temp = date_df2
-
-            # # Step 6: Fill missing values in 'Value' with 2 
-            # date_df_temp['sodp'].fillna(2, inplace=True)
-            # date_df_temp['sodp'] = date_df_temp['sodp'].astype(int)
-
-            # # Add a Date column to the date_df_temp DataFrame
-            # date_df_temp['Date'] = pd.to_datetime(date_df_temp['Date'], format='%Y-%m-%d')
-
-            # fig = calplot(
-            #     date_df_temp, 
-            #     x= "Date", 
-            #     y = "sodp",
-            #     dark_theme=False,
-            #     years_title=True,
-            #     gap=1,
-            #     name="SODP",
-            #     month_lines_width=2, 
-            #     month_lines_color="black",
-            #     colorscale="magma",
-            #     showscale=True,
-            #     cmap_max=max(prediction),
-            #     cmap_min= min(prediction)
-            #     )
-
-            # date_df_temp['Date'] = pd.to_datetime(date_df_temp['Date'])
-
-            # date_formatted = date_df_temp['Date'].dt.strftime('%Y-%m-%d')
-
-            # # Create a hover template to customize the tooltip content
-            # hover_template = (
-            #     '<b>Date</b>: %{customdata[0]}<br>' +
-            #     '<b>SODP</b>: %{customdata[1]:,.0f}<br>'
-            #     '<extra></extra>'
-            # )
-
-            # # Prepare custom data by stacking the converted 'Date' column and other columns
-            # customdata = np.stack((date_formatted, date_df_temp['sodp']), axis=-1)
-
-            # # Update the hovertemplate for the figure and add custom data
-            # fig.update_traces(hovertemplate=hover_template, customdata=customdata)
-            # fig.update_layout(title_text=f'<b>Actual SODP for flight {selected_option_3}</b>')
-            # fig.update_layout(width=800)
-            # st.plotly_chart(fig)
+            flight.loc[:, '30days-prior'] = flight['sodp'].apply(lambda x: 'True' if x >= 30 else 'False')
+            flight['30days-prior'] = flight['30days-prior'].map({'False':0,'True':1})
+            flight = flight.loc[flight.groupby('fltdep')['30days-prior'].idxmax()]
             
-            # st.write("")
+            #TESTING ONLY
+            target_date = pd.to_datetime('2019-01-01')
+            distinct_flights2 = flight[flight['fltdep'] >= target_date]
+            date_df_temp2 = distinct_flights2
+            date_df_temp2.fillna(0, inplace=True)
             
-            # #Difference
-            # start_date = '2019-01-01'
-            # end_date = '2019-12-31'
-            # full_date_range = pd.date_range(start=start_date, end=end_date)
-            # date_df3 = pd.DataFrame({'Date': full_date_range})
-            # date_df3['Date'] = pd.to_datetime(date_df3['Date'])
+            date_df_temp2['fltdep'] = pd.to_datetime(date_df_temp2['fltdep'])
+            date_df_temp2['day'] = date_df_temp2['fltdep'].dt.day
+            date_df_temp2['month'] = date_df_temp2['fltdep'].dt.month
+            date_df_temp2['year'] = date_df_temp2['fltdep'].dt.year
+            date_df_temp2['day_of_week'] = date_df_temp2['fltdep'].dt.dayofweek
+            
+            for_plotting = date_df_temp2[['fltdep','30days-prior']]
+            # Step 3: One-Hot Encoding (if needed)
+            date_df_temp2 = pd.get_dummies(date_df_temp2, columns=['month', 'day_of_week'])
+            date_df_temp2 = date_df_temp2.drop(['fltnum','lego','legd','fltdep','cmp','days_prior'], axis = 1)
+            
+            test_data = date_df_temp2
+            test_data = test_data.drop(['snap'], axis = 1)    
+            
+            testing = test_data.drop(['30days-prior'], axis = 1)
+            
+            feature_names = model.get_booster().feature_names
+            for col in feature_names:
+                if col not in testing.columns:
+                    testing[col] = 0
+                    
+            testing = testing[feature_names]
+            
+            pred = model.predict(testing)
+            act = test_data['30days-prior']
+            
+            #PREDICTED
+            start_date = '2019-01-01'
+            end_date = '2019-12-31'
+            full_date_range = pd.date_range(start=start_date, end=end_date)
+            date_df = pd.DataFrame({'Date': full_date_range})
+            date_df['Date'] = pd.to_datetime(date_df['Date'])
+            
+            for_plotting1 = for_plotting
+            for_plotting1['30days-prior'] = pred
 
-            # # Step 5: Combine the current testing data with the date_df
-            # date_df3['sodp'] = date_df2['sodp'] - date_df['sodp']
-            # date_df_temp3 = date_df3
+            merged_df1 = pd.merge(date_df, for_plotting1, left_on='Date', right_on='fltdep', how='left')
+            
+            merged_df1['30days-prior'].fillna(0, inplace=True)
+            merged_df1['30days-prior'] = merged_df1['30days-prior'].astype(int)
 
-            # # Step 6: Fill missing values in 'Value' with 2 
-            # date_df_temp3['sodp'].fillna(2, inplace=True)
-            # date_df_temp3['sodp'] = date_df_temp3['sodp'].astype(int)
+            merged_df1['Date'] = pd.to_datetime(merged_df1['Date'], format='%Y-%m-%d')
+            max_value = merged_df1['30days-prior'].max()
+            
+            fig = calplot(
+                merged_df1, 
+                x= "Date", 
+                y = "30days-prior",
+                dark_theme=False,
+                years_title=True,
+                gap=1,
+                name="30days-prior",
+                month_lines_width=2, 
+                month_lines_color="black",
+                colorscale="magma",
+                showscale=True,
+                cmap_max=1,
+                cmap_min= 0
+                )
 
-            # # Add a Date column to the date_df_temp DataFrame
-            # date_df_temp3['Date'] = pd.to_datetime(date_df_temp3['Date'], format='%Y-%m-%d')
+            merged_df1['Date'] = pd.to_datetime(merged_df1['Date'])
+            date_formatted2 = merged_df1['Date'].dt.strftime('%Y-%m-%d')
 
-            # fig = calplot(
-            #     date_df_temp3, 
-            #     x= "Date", 
-            #     y = "sodp",
-            #     dark_theme=False,
-            #     years_title=True,
-            #     gap=1,
-            #     name="SODP",
-            #     month_lines_width=0.5, 
-            #     month_lines_color="black",
-            #     colorscale="RdBu",
-            #     showscale=True
-            #     )
+            hover_template = (
+                '<b>Date</b>: %{customdata[0]}<br>' +
+                '<b>SODP</b>: %{customdata[1]:,.0f}<br>'
+                '<extra></extra>'
+            )
 
-            # date_df_temp3['Date'] = pd.to_datetime(date_df_temp3['Date'])
+            customdata = np.stack((date_formatted2, merged_df1['30days-prior']), axis=-1)
 
-            # date_formatted3 = date_df_temp3['Date'].dt.strftime('%Y-%m-%d')
+            fig.update_traces(hovertemplate=hover_template, customdata=customdata)
+            fig.update_layout(title_text=f'<b>Predicted 30days-prior for flight {selected_3}</b>')
+            fig.update_layout(width=800)
 
-            # # Create a hover template to customize the tooltip content
-            # hover_template = (
-            #     '<b>Date</b>: %{customdata[0]}<br>' +
-            #     '<b>SODP</b>: %{customdata[1]:,.0f}<br>'
-            #     '<extra></extra>'
-            # )
 
-            # # Prepare custom data by stacking the converted 'Date' column and other columns
-            # customdata = np.stack((date_formatted3, date_df_temp3['sodp']), axis=-1)
+            st.plotly_chart(fig)
+            
+            st.write("")
+            #ACTUAL
+            start_date = '2019-01-01'
+            end_date = '2019-12-31'
+            full_date_range = pd.date_range(start=start_date, end=end_date)
+            date_df2 = pd.DataFrame({'Date': full_date_range})
+            date_df2['Date'] = pd.to_datetime(date_df2['Date'])
+            
+            for_plotting2 = for_plotting
+            for_plotting2['30days-prior'] = act
 
-            # # Update the hovertemplate for the figure and add custom data
-            # fig.update_traces(hovertemplate=hover_template, customdata=customdata)
-            # fig.update_layout(title_text='<b>Delta SODP for flight 0001</b>')
-            # fig.update_layout(width=800)
-            # st.plotly_chart(fig)
+            merged_df2 = pd.merge(date_df, for_plotting2, left_on='Date', right_on='fltdep', how='left')
+            
+            # Step 6: Fill missing values in 'Value' with 2 
+            merged_df2['30days-prior'].fillna(0, inplace=True)
+            merged_df2['30days-prior'] = merged_df2['30days-prior'].astype(int)
+
+            # Add a Date column to the date_df_temp DataFrame
+            merged_df2['Date'] = pd.to_datetime(merged_df2['Date'], format='%Y-%m-%d')
+
+            fig = calplot(
+                merged_df2, 
+                x= "Date", 
+                y = "30days-prior",
+                dark_theme=False,
+                years_title=True,
+                gap=1,
+                name="30days-prior",
+                month_lines_width=2, 
+                month_lines_color="black",
+                colorscale="magma",
+                showscale=True,
+                cmap_max=1,
+                cmap_min= 0
+                )
+
+            merged_df2['Date'] = pd.to_datetime(merged_df2['Date'])
+
+            date_formatted2 = merged_df2['Date'].dt.strftime('%Y-%m-%d')
+
+            # Create a hover template to customize the tooltip content
+            hover_template = (
+                '<b>Date</b>: %{customdata[0]}<br>' +
+                '<b>SODP</b>: %{customdata[1]:,.0f}<br>'
+                '<extra></extra>'
+            )
+
+            # Prepare custom data by stacking the converted 'Date' column and other columns
+            customdata = np.stack((date_formatted2, merged_df2['30days-prior']), axis=-1)
+
+            # Update the hovertemplate for the figure and add custom data
+            fig.update_traces(hovertemplate=hover_template, customdata=customdata)
+            fig.update_layout(title_text=f'<b>Actual 30days-prior for flight {selected_3}</b>')
+            fig.update_layout(width=800)
+            st.plotly_chart(fig)
+            
+            st.write("")
+            
+            #Difference
+            start_date = '2019-01-01'
+            end_date = '2019-12-31'
+            full_date_range = pd.date_range(start=start_date, end=end_date)
+            date_df3 = pd.DataFrame({'Date': full_date_range})
+            date_df3['Date'] = pd.to_datetime(date_df3['Date'])
+
+            # Step 5: Combine the current testing data with the date_df
+            date_df3['30days-prior'] = merged_df2['30days-prior'] - merged_df1['30days-prior']
+            date_df_temp3 = date_df3
+
+            # Step 6: Fill missing values in 'Value' with 2 
+            date_df_temp3['30days-prior'].fillna(2, inplace=True)
+            date_df_temp3['30days-prior'] = date_df_temp3['30days-prior'].astype(int)
+
+            # Add a Date column to the date_df_temp DataFrame
+            date_df_temp3['Date'] = pd.to_datetime(date_df_temp3['Date'], format='%Y-%m-%d')
+
+            fig = calplot(
+                date_df_temp3, 
+                x= "Date", 
+                y = "30days-prior",
+                dark_theme=False,
+                years_title=True,
+                gap=1,
+                name="30days-prior",
+                month_lines_width=0.5, 
+                month_lines_color="black",
+                colorscale="RdBu",
+                showscale=True,
+                cmap_max = 1,
+                cmap_min = - 1
+                )
+
+            date_df_temp3['Date'] = pd.to_datetime(date_df_temp3['Date'])
+
+            date_formatted3 = date_df_temp3['Date'].dt.strftime('%Y-%m-%d')
+
+            # Create a hover template to customize the tooltip content
+            hover_template = (
+                '<b>Date</b>: %{customdata[0]}<br>' +
+                '<b>SODP</b>: %{customdata[1]:,.0f}<br>'
+                '<extra></extra>'
+            )
+
+            # Prepare custom data by stacking the converted 'Date' column and other columns
+            customdata = np.stack((date_formatted3, date_df_temp3['30days-prior']), axis=-1)
+
+            # Update the hovertemplate for the figure and add custom data
+            fig.update_traces(hovertemplate=hover_template, customdata=customdata)
+            fig.update_layout(title_text=f'<b>Delta 30days-prior for flight {selected_3}</b>')
+            fig.update_layout(width=800)
+            st.plotly_chart(fig)
             print("")
                
-elif side_bar == 'Help: CM':
+elif side_bar == '📝Help: CM':
     col1, col2 = st.columns((5,5))       
     with col1:
         st.markdown(""" ## Classification Model Documentation""")
@@ -392,9 +432,9 @@ elif side_bar == "Regression Model":
     text,img2 = st.columns((2,1))
     with text:
         st.title("SODP Regression Model")
-        st.write("Predicts exactly when the flight will get full")  
-        st.write("Trained on historical data from 2017-2018") 
-        st.write("Predicts 2019 flight") 
+        st.markdown("Predicts exactly when the flight will get full")  
+        st.markdown("Trained on historical data from `2017-2018`") 
+        st.markdown("Predicts `2019` flight") 
         st.write("")
         st.write("")
         
@@ -406,7 +446,7 @@ elif side_bar == "Regression Model":
     with option_1col:
         df1 = pd.read_sql("SELECT DISTINCT lego FROM DEMODATA ORDER BY lego", get_connection())
         options_1 = df1['lego'].tolist()
-        default_option_index1 = options_1.index('LOS')
+        default_option_index1 = options_1.index('JFK')
         selected_option_1 = st.selectbox('Select Leg Origin', options_1, index=default_option_index1)
 
         df2 = pd.read_sql(f"SELECT DISTINCT legd FROM DEMODATA WHERE lego = '{selected_option_1}' ORDER BY legd", get_connection())
@@ -437,11 +477,11 @@ elif side_bar == "Regression Model":
         if st.button("PREDICT"):
             st.sidebar.text("")
             st.sidebar.text("")
-            st.sidebar.text("Chosen values")
-            st.sidebar.text(f"OD: {selected_option_1} - {selected_option_2}\n"
-                f"Fltnum: {selected_option_3}\n"
-                f"DP: {slider_value}\n"
-                f"Dept Date: {selected_option_4}")
+            st.sidebar.markdown("### Chosen values")
+            st.sidebar.markdown(f"OD: `{selected_option_1} - {selected_option_2}`\n")
+            st.sidebar.markdown(f"Fltnum: `{selected_option_3}`\n")
+            st.sidebar.markdown(f"DP: `{slider_value}`\n")
+            st.sidebar.markdown(f"Dept Date: `{selected_option_4}`")
             
             with open(f"Fltnum{selected_option_3}_regression_model_{slider_value}_fullbk.pickle", "rb") as f:
                 model = pickle.load(f)
@@ -450,7 +490,7 @@ elif side_bar == "Regression Model":
             flight['fltdep'] = pd.to_datetime(flight['fltdep'])
             flight['snap'] = pd.to_datetime(flight['snap'])
             flight['days_prior'] = (flight['fltdep'] - flight['snap']).dt.days
-            flight['sodp'] = np.where(flight['bkd'] > flight['cap'], (flight['fltdep'] - flight['snap']).dt.days, 0)
+            flight['sodp'] = np.where(flight['bkd'] > flight['cap'], (flight['fltdep'] - flight['snap']).dt.days, -1)
 
             # Find the maximum 'sodp' value for each 'fltdep' group and broadcast it to the original DataFrame
             flight['max_sodp'] = flight.groupby('fltdep')['sodp'].transform('max')
@@ -632,6 +672,7 @@ elif side_bar == "Regression Model":
             # Step 6: Fill missing values in 'Value' with 2 
             date_df_temp3['sodp'].fillna(2, inplace=True)
             date_df_temp3['sodp'] = date_df_temp3['sodp'].astype(int)
+            max_value = date_df_temp3['sodp'].max()
 
             # Add a Date column to the date_df_temp DataFrame
             date_df_temp3['Date'] = pd.to_datetime(date_df_temp3['Date'], format='%Y-%m-%d')
@@ -647,7 +688,9 @@ elif side_bar == "Regression Model":
                 month_lines_width=0.5, 
                 month_lines_color="black",
                 colorscale="RdBu",
-                showscale=True
+                showscale=True,
+                cmap_max = max_value, 
+                cmap_min = - max_value
                 )
 
             date_df_temp3['Date'] = pd.to_datetime(date_df_temp3['Date'])
@@ -752,12 +795,15 @@ elif side_bar == "Regression Model":
             fig.update_layout(xaxis=dict(autorange='reversed'))
             # fig.update_xaxes(tickformat='%Y-%m-%d')
             st.plotly_chart(fig)
-            st.markdown(f"Predicted SODP: `{days_pred1}`")
+            if days_pred1 == -1:
+                st.markdown(f"Predicted SODP: `Flight doesn't sell out`")
+            else:
+                st.markdown(f"Predicted SODP: `{days_pred1}`")
         
             st.write("Steep increases and decreases show group bookings or cancellations.")
             st.write(f"""The dotted line depicts how the actual booking curve is. It is extracted from the given 2019 dataset.\n The line in blue depicts the booking curve {slider_value} days prior to departure.""")
                 
-elif side_bar == "Help: RM":
+elif side_bar == "📝Help: RM":
     col1, col2 = st.columns((5,5))
     
     with col1:
